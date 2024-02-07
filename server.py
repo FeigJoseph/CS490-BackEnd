@@ -7,11 +7,15 @@ CORS(app)
 
 @app.route("/movies")
 def movies():
-    db = pymysql.connect(host="localhost", user="root", password="", db="sakila")
+    db = pymysql.connect(host="localhost", user="root", password="!@Jff05288", db="sakila")
     with db.cursor() as cursor:
         sql = """Select f.film_id, f.title, f.rating, f.rental_duration, 
                 f.rental_rate, count(f.film_id) as rent_count, f.description, f.length,
-                f.release_year, f.replacement_cost, c.name
+                f.release_year, f.replacement_cost, c.name,
+                (SELECT GROUP_CONCAT(a.first_name, ' ', a.last_name SEPARATOR ', ')
+                    FROM actor a
+                    JOIN film_actor fa ON a.actor_id = fa.actor_id
+                    WHERE fa.film_id = f.film_id) as actors
                     from film f
                     left join film_category fc on fc.film_id = f.film_id
                     left join category c on c.category_id = fc.category_id
@@ -29,7 +33,7 @@ def movies():
 
 @app.route("/categories")
 def categories():
-    db = pymysql.connect(host="localhost", user="root", password="", db="sakila")
+    db = pymysql.connect(host="localhost", user="root", password="!@Jff05288", db="sakila")
     with db.cursor() as cursor:
         sql = """Select name
                 FROM category
@@ -44,7 +48,7 @@ def categories():
 
 @app.route("/topMovies")
 def topMovies():
-    db = pymysql.connect(host="localhost", user="root", password="", db="sakila")
+    db = pymysql.connect(host="localhost", user="root", password="!@Jff05288", db="sakila")
     with db.cursor() as cursor:
         sql = """Select f.film_id, f.title, f.rating, f.rental_duration, 
                 f.rental_rate, count(f.film_id) as rent_count, f.description, f.length,
@@ -67,7 +71,7 @@ def topMovies():
 
 @app.route("/topActors")
 def topActors():
-    db = pymysql.connect(host="localhost", user="root", password="", db="sakila")
+    db = pymysql.connect(host="localhost", user="root", password="!@Jff05288", db="sakila")
     with db.cursor() as cursor:
         sql = """Select a.actor_id, a.first_name, a.last_name, count(f.film_id) as movies
                 from film f
@@ -85,7 +89,7 @@ def topActors():
 
 @app.route("/topMoviesForActor")
 def topMoviesForActor():
-    db = pymysql.connect(host="localhost", user="root", password="", db="sakila")
+    db = pymysql.connect(host="localhost", user="root", password="!@Jff05288", db="sakila")
     actorID = request.args.get('actorId')
     with db.cursor() as cursor:
         sql = """SELECT f.film_id, f.title
@@ -108,19 +112,32 @@ def topMoviesForActor():
 
 
 
-@app.route("/actors")
+@app.route("/filmactor")
 def actors():
-    db = pymysql.connect(host="localhost", user="root", password="", db="sakila")
+    db = pymysql.connect(host="localhost", user="root", password="!@Jff05288", db="sakila")
     with db.cursor() as cursor:
-        sql = "SELECT * FROM actor"
+        sql = "SELECT film_id, FROM film_actor"
         cursor.execute(sql)
         results = cursor.fetchall()
-        return jsonify({"actors": results})
+        return jsonify({"filmactor": results})
     
 
+
 @app.route("/customers", methods=['POST'])
+def customer():
+    db = pymysql.connect(host="localhost", user="root", password="!@Jff05288", db="sakila")
+    data = request.get_json()
+    customerID = data.get('customer_id')
+    with db.cursor() as cursor:
+        query = "SELECT * FROM customer WHERE customer_id = %s"
+        cursor.execute(query, ([customerID]))
+        results = cursor.fetchall()
+        return jsonify({"customer": results})
+
+
+@app.route("/fhfs", methods=['POST'])
 def create_customer():
-    db = pymysql.connect(host="localhost", user="root", password="", db="sakila")
+    db = pymysql.connect(host="localhost", user="root", password="!@Jff05288", db="sakila")
     data = request.get_json()
     first_name = data.get('first_name')
     last_name = data.get('last_name')
