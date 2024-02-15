@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify
 import pymysql
 from flask_cors import CORS 
+from shapely.geometry import Point
 
 app = Flask(__name__)
 CORS(app) 
@@ -43,6 +44,25 @@ def categories():
         if not results:
             return jsonify({"categories": []})
         return jsonify({"categories": results})
+    
+
+
+@app.route("/allCustomers")
+def allCustomers():
+    db = pymysql.connect(host="localhost", user="root", password="!@Jff05288", db="sakila")
+    with db.cursor() as cursor:
+        sql = """Select c.customer_id, c.first_name, c.last_name, c.email, a.address, a.phone,
+                        cty.city, ctry.country, a.postal_code
+                FROM customer c
+                    LEFT JOIN address a on a.address_id = c.address_id
+                    LEFT JOIN city cty on cty.city_id = a.city_id
+                    LEFT JOIN country ctry on ctry.country_id = cty.country_id
+                ORDER BY c.customer_id ASC;"""
+        cursor.execute(sql)
+        results = cursor.fetchall()
+        if not results:
+            return jsonify({"customers": []})
+        return jsonify({"customers": results})
 
 
 
@@ -133,6 +153,293 @@ def customer():
         cursor.execute(query, ([customerID]))
         results = cursor.fetchall()
         return jsonify({"customer": results})
+    
+
+@app.route("/delCustomer", methods=['POST'])
+def delCustomer():
+    db = pymysql.connect(host="localhost", user="root", password="!@Jff05288", db="sakila")
+    data = request.get_json()
+    custID = data.get('customerID')
+    
+    with db.cursor() as cursor:
+        query = "SELECT * FROM customer WHERE customer_id = %s"
+        cursor.execute(query, ([custID]))
+        results = cursor.fetchall()
+        if results:
+            query = """DELETE FROM customer WHERE customer_id = %s"""
+            cursor.execute(query, ([custID]))
+            db.commit()
+            response = {
+            'message': 'Customer Deleted'
+            }
+        else:
+            response = {
+                'message': 'Customer does not exist'
+            }
+    return jsonify(response), 200
+
+
+
+@app.route("/addCustomer", methods=['POST'])
+def addCustomer():
+    db = pymysql.connect(host="localhost", user="root", password="!@Jff05288", db="sakila")
+    data = request.get_json()
+    first_name = data.get('first_name')
+    last_name = data.get('last_name')
+    email = data.get('email')
+    phone_number = data.get('phone_number')
+    address = data.get('address')
+    city = data.get('city')
+    country = data.get('country')
+    postalCode = data.get('postalCode')
+
+    countryID = 0
+    cityID = 0
+    addressID = 0
+
+    #get countryID
+    with db.cursor() as cursor:
+        query = "SELECT * FROM country WHERE country = %s"
+        cursor.execute(query, ([country]))
+        results = cursor.fetchall()
+        if results:
+            countryID = results[0][0]
+        else:
+            query = """
+                INSERT INTO country (country, last_update)
+                VALUES (%s, NOW())
+                """
+            cursor.execute(query, ([country]))
+            db.commit()
+            query = "SELECT * FROM country WHERE country = %s"
+            cursor.execute(query, ([country]))
+            results = cursor.fetchall()
+            countryID = results[0][0]
+
+
+
+    #get cityID
+    with db.cursor() as cursor:
+        query = "SELECT * FROM city WHERE city = %s"
+        cursor.execute(query, (city))
+        results = cursor.fetchall()
+        if results:
+            cityID = results[0][0]
+        else:
+            query = """
+                INSERT INTO city (city, country_id, last_update)
+                VALUES (%s, %s, NOW())
+                """
+            cursor.execute(query, (city, countryID))
+            db.commit()
+            query = "SELECT * FROM city WHERE city = %s"
+            cursor.execute(query, (city))
+            results = cursor.fetchall()
+            cityID = results[0][0]
+
+
+    
+
+    #get addressID
+    with db.cursor() as cursor:
+        point = Point(0, 0) 
+        WKT = point.wkt
+        query = "SELECT * FROM address WHERE address = %s"
+        cursor.execute(query, [address])
+        results = cursor.fetchall()
+        
+        if results:
+            addressID = results[0][0]
+        else:
+            query = """
+                INSERT INTO address (address, address2, district, 
+                        city_id, postal_code, phone, location, last_update)
+                VALUES (%s, NULL, %s, %s, %s, %s,  ST_GeomFromText(%s), NOW())
+                """
+            cursor.execute(query, ([address], '', cityID, postalCode,
+                                   phone_number, WKT))
+            db.commit()
+            query = "SELECT * FROM address WHERE address = %s"
+            cursor.execute(query, ([address]))
+            results = cursor.fetchall()
+            addressID = results[0][0]
+
+
+
+    # get customerID
+    with db.cursor() as cursor:
+        query = "SELECT * FROM customer WHERE email = %s"
+        cursor.execute(query, ([email]))
+        results = cursor.fetchall()
+        if results:
+            response = {
+            'message': 'Customer already exists'
+            }
+        else:
+            query = """
+                INSERT INTO customer (store_id, first_name, last_name, 
+                        email, address_id, active, create_date, last_update)
+                VALUES (1, %s, %s, %s, %s, 1, NOW(), NOW())
+                """
+            cursor.execute(query, (first_name, last_name, [email], addressID))
+            db.commit()
+            response = {
+                'message': 'Customer added successfully'
+            }
+
+    return jsonify(response), 200
+
+
+
+
+
+
+
+
+@app.route("/updateCustomer", methods=['POST'])
+def updateCustomer():
+    db = pymysql.connect(host="localhost", user="root", password="!@Jff05288", db="sakila")
+    data = request.get_json()
+    id = data.get('id')
+    first_name = data.get('firstName')
+    last_name = data.get('lastName')
+    email = data.get('email')
+    phone_number = data.get('phone')
+    streetAddress = data.get('address')
+    city = data.get('city')
+    country = data.get('country')
+    postalCode = data.get('postal')
+
+
+    print(first_name)
+    #get countryID
+    with db.cursor() as cursor:
+        query = "SELECT * FROM country WHERE country = %s"
+        cursor.execute(query, ([country]))
+        results = cursor.fetchall()
+        if results:
+            countryID = results[0][0]
+        else:
+            query = """
+                INSERT INTO country (country, last_update)
+                VALUES (%s, NOW())
+                """
+            cursor.execute(query, ([country]))
+            db.commit()
+            query = "SELECT * FROM country WHERE country = %s"
+            cursor.execute(query, ([country]))
+            results = cursor.fetchall()
+            countryID = results[0][0]
+
+    with db.cursor() as cursor:
+        query = "UPDATE country SET country = %s WHERE country_id = %s"
+        cursor.execute(query, ([country], countryID))
+        db.commit()
+
+
+    #get cityID
+    with db.cursor() as cursor:
+        query = "SELECT * FROM city WHERE city = %s"
+        cursor.execute(query, (city))
+        results = cursor.fetchall()
+        if results:
+            cityID = results[0][0]
+        else:
+            query = """
+                INSERT INTO city (city, country_id, last_update)
+                VALUES (%s, %s, NOW())
+                """
+            cursor.execute(query, (city, countryID))
+            db.commit()
+            query = "SELECT * FROM city WHERE city = %s"
+            cursor.execute(query, (city))
+            results = cursor.fetchall()
+            cityID = results[0][0]
+
+    with db.cursor() as cursor:
+        query = "UPDATE city SET city = %s, country_id = %s WHERE city_id = %s"
+        cursor.execute(query, ([city], countryID, cityID))
+        db.commit()
+
+    
+
+    #get addressID
+    with db.cursor() as cursor:
+        point = Point(0, 0) 
+        WKT = point.wkt
+        query = "SELECT * FROM address WHERE address = %s AND postal_code = %s"
+        cursor.execute(query, ([streetAddress], [postalCode]))
+        results = cursor.fetchall()
+        
+        if results:
+            addressID = results[0][0]
+        else:
+            query = """
+                INSERT INTO address (address, address2, district, 
+                        city_id, postal_code, phone, location, last_update)
+                VALUES (%s, NULL, %s, %s, %s, %s,  ST_GeomFromText(%s), NOW())
+                """
+            cursor.execute(query, ([streetAddress], '', cityID, postalCode,
+                                   phone_number, WKT))
+            db.commit()
+            query = "SELECT * FROM address WHERE address = %s AND postal_code = %s"
+            cursor.execute(query, ([streetAddress], [postalCode]))
+            results = cursor.fetchall()
+            addressID = results[0][0]
+
+    with db.cursor() as cursor:
+        query = "UPDATE address SET address = %s, postal_code = %s, phone = %s, city_id = %s WHERE address_id = %s"
+        cursor.execute(query, ([streetAddress], [postalCode], phone_number, cityID, addressID))
+        db.commit()
+
+
+
+
+    # get customerID
+    with db.cursor() as cursor:
+        query="UPDATE customer SET first_name = %s, last_name = %s, email = %s, address_id = %s WHERE customer_id = %s"
+        cursor.execute(query, ([first_name], [last_name], [email], addressID, id))
+        db.commit()
+        
+
+
+    response = {
+            'message': 'Customer updated'
+            }
+    return jsonify(response), 200
+
+
+
+
+
+
+
+@app.route("/rentals", methods=['POST'])
+def rentals():
+    db = pymysql.connect(host="localhost", user="root", password="!@Jff05288", db="sakila")
+    data = request.get_json()
+    customerID = data.get('id')
+    with db.cursor() as cursor:
+        query = '''
+            SELECT r.*,  cast(DATE_ADD(r.rental_date, INTERVAL f.rental_duration DAY) as date) as return_by
+            FROM rental r 
+                LEFT JOIN inventory i on r.inventory_id = i.inventory_id
+                LEFT JOIN film f on i.film_id = f.film_id
+            WHERE r.customer_id = %s ORDER BY (r.return_date is NULL) DESC, r.return_date DESC
+        '''
+        cursor.execute(query, ([customerID]))
+        results = cursor.fetchall()
+        return jsonify({"rentals": results})
+
+
+
+
+
+
+
+
+
+
 
 
 @app.route("/fhfs", methods=['POST'])
